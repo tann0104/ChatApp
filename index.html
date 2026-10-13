@@ -53,9 +53,9 @@
 
 <dialog id="make">
   <h2>部屋をつくる</h2>
-  <p>パスワードを知っている人だけが入れます。あなたがオーナーになります。</p>
+  <p>パスワードを決めると、知っている人だけが入れます。空欄なら誰でも入れます。あなたがオーナーになります。</p>
   <input id="roomName" maxlength="30" placeholder="部屋の名前" aria-label="部屋の名前">
-  <input id="roomPw" type="password" placeholder="パスワード（4文字以上）" aria-label="パスワード" autocomplete="new-password">
+  <input id="roomPw" type="password" placeholder="パスワード（任意・4文字以上）" aria-label="パスワード" autocomplete="new-password">
   <p class="err" id="makeErr" role="alert"></p>
   <div class="stack"><button class="send" id="makeBtn">つくる</button><button class="send ghost" id="makeCancel">キャンセル</button></div>
 </dialog>
@@ -63,11 +63,11 @@
 <dialog id="cfg">
   <h2>部屋の設定</h2>
   <p>オーナーだけが変更できます。</p>
-  <input id="newPw" type="password" placeholder="新しいパスワード（4文字以上）" aria-label="新しいパスワード" autocomplete="new-password">
+  <input id="newPw" type="password" placeholder="新しいパスワード（空欄で解除）" aria-label="新しいパスワード" autocomplete="new-password">
   <label class="chk"><input type="checkbox" id="kick">今いるほかのメンバーを退室させる</label>
   <p class="err" id="cfgErr" role="alert"></p>
   <div class="stack">
-    <button class="send" id="cfgSave">パスワードを変更</button>
+    <button class="send" id="cfgSave">保存</button>
     <button class="send danger" id="cfgDelete">この部屋を削除</button>
     <button class="send ghost" id="cfgClose">閉じる</button>
   </div>
