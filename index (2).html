@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ことりば</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div><h1>ことりば</h1><p>ひとことから始まる、みんなの部屋</p></div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">接続中</span></div>
+  </header>
+  <div class="banner" id="banner" hidden>デモモード: メッセージはこのページ内だけに残ります。<code>config.js</code> に <code>SUPABASE_URL</code> と <code>SUPABASE_KEY</code> を設定すると、みんなと共有されます。</div>
+  <main id="feed" aria-live="polite"></main>
+  <form id="form">
+    <textarea id="input" rows="1" maxlength="1000" placeholder="メッセージを書く（Enterで送信、Shift+Enterで改行）" aria-label="メッセージ"></textarea>
+    <button class="send" id="send" disabled>送信</button>
+  </form>
+</div>
+
+<dialog id="join">
+  <h2>はじめまして</h2>
+  <p>部屋で使う名前を決めてください。あとから変えられます。</p>
+  <input id="nameInput" maxlength="20" placeholder="例: みどり" aria-label="表示名" autocomplete="nickname">
+  <button class="send" id="joinBtn" style="width:100%">部屋に入る</button>
+</dialog>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
