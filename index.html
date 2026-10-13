@@ -13,30 +13,64 @@
 <body>
 <div class="app">
   <header>
-    <div><h1>ことりば</h1><p>ひとことから始まる、みんなの部屋</p></div>
+    <button class="icon" id="back" hidden aria-label="部屋の一覧へ戻る">←</button>
+    <div><h1 id="title">ことりば</h1><p id="sub">ひとことから始まる、みんなの部屋</p></div>
     <div class="status" id="status"><span class="dot"></span><span id="statusText">接続中</span></div>
+    <button class="icon" id="settingsBtn" hidden aria-label="部屋の設定">⚙</button>
   </header>
-  <div class="banner" id="banner" hidden>デモモード: メッセージはこのページ内だけに残ります。<code>config.js</code> に <code>SUPABASE_URL</code> と <code>SUPABASE_KEY</code> を設定すると、みんなと共有されます。</div>
-  <main id="feed" aria-live="polite"></main>
-  <form id="form">
-    <textarea id="input" rows="1" maxlength="1000" placeholder="メッセージを書く（Enterで送信、Shift+Enterで改行）" aria-label="メッセージ"></textarea>
-    <button class="send" id="send" disabled>送信</button>
-  </form>
-</div>
 
-<dialog id="gate">
-  <h2>合言葉を入力</h2>
-  <p>部屋のパスワードを入れてください。</p>
-  <input id="pwInput" type="password" placeholder="パスワード" aria-label="パスワード" autocomplete="current-password">
-  <p id="gateErr" role="alert" style="color:#D6336C;margin:-6px 0 14px;min-height:1.4em"></p>
-  <button class="send" id="gateBtn" style="width:100%">入る</button>
-</dialog>
+  <section id="lobby">
+    <div class="bar">
+      <span class="me-name"><span id="meText"></span><button id="renameBtn">変更</button></span>
+      <button class="send" id="makeBtn0">部屋をつくる</button>
+    </div>
+    <div id="rooms"></div>
+  </section>
+
+  <section id="chat" hidden>
+    <main id="feed" aria-live="polite"></main>
+    <form id="form">
+      <textarea id="input" rows="1" maxlength="1000" placeholder="メッセージを書く（Enterで送信、Shift+Enterで改行）" aria-label="メッセージ"></textarea>
+      <button class="send" id="send" disabled>送信</button>
+    </form>
+  </section>
+</div>
 
 <dialog id="join">
   <h2>はじめまして</h2>
   <p>部屋で使う名前を決めてください。あとから変えられます。</p>
   <input id="nameInput" maxlength="20" placeholder="例: みどり" aria-label="表示名" autocomplete="nickname">
-  <button class="send" id="joinBtn" style="width:100%">部屋に入る</button>
+  <div class="stack"><button class="send" id="joinBtn">決定</button></div>
+</dialog>
+
+<dialog id="gate">
+  <h2 id="gateTitle">合言葉を入力</h2>
+  <p>この部屋のパスワードを入れてください。</p>
+  <input id="pwInput" type="password" placeholder="パスワード" aria-label="パスワード" autocomplete="off">
+  <p class="err" id="gateErr" role="alert"></p>
+  <div class="stack"><button class="send" id="gateBtn">入る</button><button class="send ghost" id="gateCancel">キャンセル</button></div>
+</dialog>
+
+<dialog id="make">
+  <h2>部屋をつくる</h2>
+  <p>パスワードを知っている人だけが入れます。あなたがオーナーになります。</p>
+  <input id="roomName" maxlength="30" placeholder="部屋の名前" aria-label="部屋の名前">
+  <input id="roomPw" type="password" placeholder="パスワード（4文字以上）" aria-label="パスワード" autocomplete="new-password">
+  <p class="err" id="makeErr" role="alert"></p>
+  <div class="stack"><button class="send" id="makeBtn">つくる</button><button class="send ghost" id="makeCancel">キャンセル</button></div>
+</dialog>
+
+<dialog id="cfg">
+  <h2>部屋の設定</h2>
+  <p>オーナーだけが変更できます。</p>
+  <input id="newPw" type="password" placeholder="新しいパスワード（4文字以上）" aria-label="新しいパスワード" autocomplete="new-password">
+  <label class="chk"><input type="checkbox" id="kick">今いるほかのメンバーを退室させる</label>
+  <p class="err" id="cfgErr" role="alert"></p>
+  <div class="stack">
+    <button class="send" id="cfgSave">パスワードを変更</button>
+    <button class="send danger" id="cfgDelete">この部屋を削除</button>
+    <button class="send ghost" id="cfgClose">閉じる</button>
+  </div>
 </dialog>
 <div class="toast" id="toast" hidden role="status"></div>
 
