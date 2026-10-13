@@ -36,9 +36,9 @@ async function showLobby(){
     const b=document.createElement('button');b.className='room'+(own?' own':'');
     const av=document.createElement('div');av.className='av';blob(av,x.name);
     const nm=document.createElement('span');nm.className='nm';nm.textContent=x.name;
-    const tag=document.createElement('span');tag.className='tag';tag.textContent=own?'オーナー':isIn?'参加中':'パスワードあり';
+    const tag=document.createElement('span');tag.className='tag';tag.textContent=own?'オーナー':isIn?'参加中':x.has_password?'パスワードあり':'だれでも入れる';
     b.append(av,nm,tag);
-    b.onclick=()=>isIn?openRoom(x):askPassword(x);
+    b.onclick=()=>isIn?openRoom(x):x.has_password?askPassword(x):joinFree(x);
     box.append(b);
   }
 }
@@ -57,6 +57,12 @@ async function tryJoin(){
   if(error){console.error(error);$('gateErr').textContent='入室できませんでした: '+error.message;return}
   if(data!==true){$('gateErr').textContent='パスワードが違います。';$('pwInput').select();return}
   $('gate').close();openRoom(pending);
+}
+
+async function joinFree(r){
+  const {data,error}=await sb.rpc('join_room',{p_room:r.id,p_password:''});
+  if(error||data!==true){console.error(error);toast('入室できませんでした。');return}
+  openRoom(r);
 }
 
 async function openRoom(r){
@@ -119,7 +125,7 @@ function openMake(){
 async function createRoom(){
   const name=$('roomName').value.trim(), pw=$('roomPw').value;
   if(!name){$('roomName').focus();return}
-  if(pw.length<4){$('makeErr').textContent='パスワードは4文字以上にしてください。';return}
+  if(pw&&pw.length<4){$('makeErr').textContent='パスワードは4文字以上にしてください。';return}
   $('makeBtn').disabled=true;
   const {data,error}=await sb.rpc('create_room',{p_name:name,p_password:pw});
   $('makeBtn').disabled=false;
@@ -133,10 +139,10 @@ async function createRoom(){
 function openCfg(){$('newPw').value='';$('kick').checked=false;$('cfgErr').textContent='';$('cfg').showModal()}
 async function saveCfg(){
   const pw=$('newPw').value;
-  if(pw.length<4){$('cfgErr').textContent='パスワードは4文字以上にしてください。';return}
+  if(pw&&pw.length<4){$('cfgErr').textContent='パスワードは4文字以上にしてください。';return}
   const {error}=await sb.rpc('set_room_password',{p_room:room.id,p_password:pw,p_kick:$('kick').checked});
   if(error){console.error(error);$('cfgErr').textContent='変更できませんでした: '+error.message;return}
-  $('cfg').close();toast('パスワードを変更しました。');
+  $('cfg').close();toast(pw?'パスワードを変更しました。':'パスワードを解除しました。');
 }
 async function deleteRoom(){
   if(!confirm('「'+room.name+'」を削除します。メッセージもすべて消え、元に戻せません。'))return;
