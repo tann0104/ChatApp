@@ -2,7 +2,7 @@
 const ROOM = 'lobby';
 
 const demo = !window.SUPABASE_URL || !window.SUPABASE_KEY;
-const sb = demo ? null : window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+const sb = demo ? null : window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY, { db: { schema: 'public' } });
 const $ = id => document.getElementById(id);
 const feed = $('feed'), input = $('input'), sendBtn = $('send');
 let me = '', messages = [];
@@ -50,11 +50,11 @@ function add(m){ if(m.id&&messages.some(x=>x.id===m.id))return; messages.push(m)
 
 async function load(){
   if(demo){setStatus(false,'デモ');$('banner').hidden=false;render();return}
-  const {data,error}=await sb.from('messages').select('*').eq('room',ROOM).order('created_at',{ascending:false}).limit(100);
-  if(error){toast('メッセージを読み込めませんでした。URLとキーを確認してください。');setStatus(false,'未接続');return}
+  const {data,error}=await sb.from('chat_messages').select('*').eq('room',ROOM).order('created_at',{ascending:false}).limit(100);
+  if(error){console.error('load error:',error);toast('メッセージを読み込めませんでした: '+(error.message||'原因不明'));setStatus(false,'未接続');return}
   messages=data.reverse();render();
   sb.channel('room-'+ROOM)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'room=eq.'+ROOM},p=>add(p.new))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'room=eq.'+ROOM},p=>add(p.new))
     .subscribe(s=>{ if(s==='SUBSCRIBED')setStatus(true,'オンライン'); else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT')setStatus(false,'再接続中') });
 }
 
@@ -63,8 +63,8 @@ async function send(){
   if(!body)return;
   input.value='';grow();sendBtn.disabled=true;
   if(demo){add({id:crypto.randomUUID(),name:me,body,created_at:new Date().toISOString()});return}
-  const {error}=await sb.from('messages').insert({room:ROOM,name:me,body});
-  if(error){input.value=body;grow();sendBtn.disabled=false;toast('送信できませんでした。もう一度お試しください。')}
+  const {error}=await sb.from('chat_messages').insert({room:ROOM,name:me,body});
+  if(error){console.error('send error:',error);input.value=body;grow();sendBtn.disabled=false;toast('送信できませんでした: '+(error.message||'原因不明'))}
 }
 
 function grow(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px'}
