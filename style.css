@@ -9,17 +9,16 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--mist);color:var(--ink);font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;font-size:16px;line-height:1.7}
-.app{max-width:720px;height:100%;margin:0 auto;display:flex;flex-direction:column}
-header{display:flex;align-items:center;gap:14px;padding:20px 20px 14px}
+.app{max-width:720px;height:100%;height:100dvh;margin:0 auto;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:20px 20px 14px;flex:none}
 header h1{margin:0;font-size:28px;font-weight:900;letter-spacing:.02em;line-height:1.1}
 header p{margin:2px 0 0;font-size:13px;color:var(--muted)}
-.status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--paper);padding:6px 12px;border-radius:99px;border:1px solid var(--line)}
+.brand{min-width:0}
+.status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--paper);padding:6px 12px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .status.on .dot{background:var(--mint);box-shadow:0 0 0 4px color-mix(in srgb,var(--mint) 30%,transparent)}
-.banner{margin:0 20px 8px;padding:10px 14px;border-radius:14px;background:var(--paper);border:1px dashed var(--muted);font-size:13px;color:var(--muted)}
-.banner code{font-family:ui-monospace,monospace;color:var(--ink)}
-#feed{flex:1;overflow-y:auto;padding:8px 20px 16px;display:flex;flex-direction:column;gap:3px;scroll-behavior:smooth}
-.empty{margin:auto;text-align:center;color:var(--muted);max-width:260px}
+#feed{flex:1;min-height:0;overflow-y:auto;padding:8px 20px 16px;display:flex;flex-direction:column;gap:3px;scroll-behavior:smooth}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:260px;padding:20px}
 .empty b{display:block;font-size:20px;color:var(--ink);margin-bottom:4px}
 .row{display:flex;gap:10px;align-items:flex-end;max-width:85%}
 .row.me{align-self:flex-end;flex-direction:row-reverse}
@@ -32,34 +31,32 @@ header p{margin:2px 0 0;font-size:13px;color:var(--muted)}
 .bubble{background:var(--paper);padding:9px 15px;border-radius:20px 20px 20px 6px;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--line)}
 .me .bubble{background:var(--ink);color:var(--mist);border-color:var(--ink);border-radius:20px 20px 6px 20px}
 .time{align-self:flex-end;font-size:11px;color:var(--muted);padding-bottom:2px;flex:none}
-form{display:flex;gap:10px;align-items:flex-end;padding:12px 20px 20px}
+form{display:flex;gap:10px;align-items:flex-end;padding:12px 20px max(20px,env(safe-area-inset-bottom));flex:none}
 textarea{flex:1;resize:none;max-height:140px;min-height:48px;padding:11px 18px;border-radius:24px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;line-height:1.6}
 textarea:focus,button:focus-visible,input:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
-button.send{flex:none;height:48px;padding:0 24px;border:0;border-radius:24px;background:var(--mint);color:var(--mint-ink);font:inherit;font-weight:700;cursor:pointer;transition:transform .12s}
-button.send:active{transform:scale(.95)}
+button.send{flex:none;min-height:48px;padding:0 24px;border:0;border-radius:24px;background:var(--mint);color:var(--mint-ink);font:inherit;font-weight:700;cursor:pointer;transition:transform .12s,filter .12s}
+button.send:hover:not(:disabled){filter:brightness(.97)}
+button.send:active{transform:scale(.97)}
 button.send:disabled{opacity:.45;cursor:default}
-dialog{border:0;border-radius:28px;padding:32px;background:var(--paper);color:var(--ink);width:min(420px,calc(100% - 32px));box-shadow:0 20px 60px rgba(35,31,61,.25)}
+dialog{border:1px solid var(--line);border-radius:28px;padding:32px;background:var(--paper);color:var(--ink);width:min(420px,calc(100% - 32px));box-shadow:0 20px 60px rgba(35,31,61,.25)}
 dialog::backdrop{background:rgba(35,31,61,.45);backdrop-filter:blur(4px)}
 dialog h2{margin:0 0 4px;font-size:24px;font-weight:900}
 dialog p{margin:0 0 20px;color:var(--muted);font-size:14px}
-dialog input{width:100%;padding:12px 18px;border-radius:16px;border:1.5px solid var(--line);background:var(--mist);color:var(--ink);font:inherit;margin-bottom:14px}
+dialog input:not([type=checkbox]){width:100%;padding:12px 18px;border-radius:16px;border:1.5px solid var(--line);background:var(--mist);color:var(--ink);font:inherit;margin-bottom:14px}
 dialog button{width:100%}
-.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--mist);padding:10px 18px;border-radius:14px;font-size:14px;max-width:calc(100% - 40px)}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--mist);padding:10px 18px;border-radius:14px;font-size:14px;max-width:calc(100% - 40px);z-index:10;box-shadow:0 8px 28px rgba(35,31,61,.18)}
 .toast[hidden]{display:none}
-@media (prefers-reduced-motion:reduce){#feed{scroll-behavior:auto}button.send{transition:none}}
-
-/* ---- ルーム機能 ---- */
 [hidden]{display:none!important}
 header .icon{margin-left:0}
 .icon{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;font-size:18px;cursor:pointer}
-#lobby{flex:1;overflow-y:auto;padding:8px 20px 24px}
-#chat{flex:1;display:flex;flex-direction:column;min-height:0}
+#lobby{flex:1;min-height:0;overflow-y:auto;padding:8px 20px 24px}
+#chat{flex:1;min-height:0;display:flex;flex-direction:column}
 .bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
 .me-name{font-size:13px;color:var(--muted)}
 .me-name button{background:none;border:0;color:var(--ink);font:inherit;text-decoration:underline;cursor:pointer;padding:0 0 0 6px}
 #rooms{display:flex;flex-direction:column;gap:10px}
-.room{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 18px;border-radius:22px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;cursor:pointer}
-.room:hover{border-color:var(--ink)}
+.room{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 18px;border-radius:22px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;cursor:pointer;transition:border-color .15s,transform .15s}
+.room:hover{border-color:var(--muted);transform:translateY(-1px)}
 .room .nm{font-weight:700;font-size:17px;flex:1;min-width:0;overflow-wrap:anywhere}
 .room .tag{font-size:12px;color:var(--muted);flex:none}
 .room.own .tag{color:var(--mint-ink);background:var(--mint);padding:2px 10px;border-radius:99px}
@@ -67,6 +64,29 @@ header .icon{margin-left:0}
 .stack button{width:100%}
 .ghost{background:transparent!important;color:var(--muted)!important}
 .danger{background:#FFD6DE!important;color:#8A1C36!important}
-.err{color:#D6336C;min-height:1.4em;margin:-6px 0 14px}
 .chk{display:flex;align-items:center;font-size:14px;margin-bottom:14px}
 .chk input{width:auto;margin:0 8px 0 0}
+.err{color:#D6336C;min-height:1.4em;margin:-6px 0 14px!important}
+
+/* KOTORIBA — online members: lavender, mint and soft organic shapes */
+.online-panel{position:relative;flex:none;margin:0 20px 10px;padding:16px 18px 15px;overflow:hidden;background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--mint) 13%,transparent),transparent 58%),var(--paper);border:1px solid var(--line);border-radius:24px;box-shadow:0 5px 18px rgba(57,44,95,.035);animation:kotoPanelIn .35s ease both}
+.online-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.online-title{display:flex;align-items:center;gap:11px;min-width:0}
+.online-sparkle{display:grid;place-items:center;flex:none;width:39px;height:39px;border-radius:15px;background:color-mix(in srgb,var(--mint) 24%,var(--paper));color:var(--mint-ink);font-size:22px;transform:rotate(-7deg)}
+.online-heading{color:var(--ink);font-size:14px;font-weight:900;letter-spacing:.015em;line-height:1.5}
+.online-caption{margin-top:2px;color:var(--muted);font-size:11px;line-height:1.5}
+.online-count-wrap{display:flex;align-items:center;justify-content:center;gap:6px;flex:none;min-height:34px;padding:0 12px;border:1px solid var(--line);border-radius:99px;background:var(--mist);color:var(--ink);font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}
+.online-indicator{width:7px;height:7px;border-radius:50%;background:#38bd86;box-shadow:0 0 0 3px rgba(56,189,134,.13)}
+.online-count-label{color:var(--muted);font-size:11px;font-weight:500}
+.online-divider{height:1px;margin:14px 0 12px;background:var(--line);opacity:.8}
+.online-members{display:flex;flex-wrap:wrap;align-items:center;gap:10px 8px;min-height:34px}
+.online-member{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;padding:3px 9px 3px 3px;border:1px solid transparent;border-radius:99px;color:var(--ink);font-size:12px;transition:background .18s ease,border-color .18s ease,transform .18s ease;animation:kotoMemberIn .24s ease both}
+.online-member:hover{background:var(--mist);border-color:var(--line);transform:translateY(-1px)}
+.online-member .av{position:relative;flex:none;display:grid;place-items:center;width:32px;height:32px;margin:0;border:2px solid var(--paper);box-shadow:0 0 0 1px var(--line);font-size:12px}
+.online-member .av::after{content:"";position:absolute;right:-2px;bottom:-1px;width:8px;height:8px;border:2px solid var(--paper);border-radius:50%;background:#38bd86}
+.online-member .member-name{min-width:0;overflow-wrap:anywhere;font-weight:700}
+.online-empty{display:block;width:100%;padding:5px 2px;color:var(--muted);font-size:12px;text-align:center}
+@keyframes kotoPanelIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kotoMemberIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:480px){header{gap:9px;padding:15px 12px 12px}header h1{font-size:25px}header p{font-size:11px}.status{gap:6px;padding:5px 9px;font-size:11px}#lobby{padding:8px 12px 20px}#feed{padding-left:12px;padding-right:12px}form{padding-left:12px;padding-right:12px}.online-panel{margin:0 12px 8px;padding:13px 13px 12px;border-radius:21px}.online-sparkle{width:35px;height:35px;border-radius:13px}.online-caption{font-size:10px}.online-members{gap:8px 5px}.online-member{gap:6px;padding-right:6px}.row{max-width:92%}}
+@media(prefers-reduced-motion:reduce){#feed{scroll-behavior:auto}button.send,.room,.online-member{transition:none}.online-panel,.online-member{animation:none}}
