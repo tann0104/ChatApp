@@ -51,7 +51,7 @@ function add(m){ if(m.id&&messages.some(x=>x.id===m.id))return; messages.push(m)
 async function load(){
   if(demo){setStatus(false,'デモ');$('banner').hidden=false;render();return}
   const {data,error}=await sb.from('chat_messages').select('*').eq('room',ROOM).order('created_at',{ascending:false}).limit(100);
-  if(error){console.error('load error:',error);toast('メッセージを読み込めませんでした: '+(error.message||'原因不明'));setStatus(false,'未接続');return}
+  if(error){console.error('load error:',error);if(error.code==='PGRST301'||/JWT/i.test(error.message||'')||error.code==='42501'){await sb.auth.signOut();showGate('もう一度パスワードを入力してください。');return}toast('メッセージを読み込めませんでした: '+(error.message||'原因不明'));setStatus(false,'未接続');return}
   messages=data.reverse();render();
   sb.channel('room-'+ROOM)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'room=eq.'+ROOM},p=>add(p.new))
@@ -81,5 +81,31 @@ $('joinBtn').addEventListener('click',join);
 $('nameInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.isComposing){e.preventDefault();join()} });
 
 me=store.get('kotoriba-name')||'';
-load();
-if(!me){$('join').showModal();$('nameInput').focus()}
+
+function askName(){ if(!me){$('join').showModal();$('nameInput').focus()} }
+function enter(){ load(); askName(); }
+function showGate(msg){ $('gateErr').textContent=msg||''; if(!$('gate').open)$('gate').showModal(); $('pwInput').value=''; $('pwInput').focus(); }
+
+async function unlock(){
+  const password=$('pwInput').value;
+  if(!password)return;
+  if(!window.ROOM_EMAIL){$('gateErr').textContent='config.js に ROOM_EMAIL が設定されていません。';return}
+  $('gateBtn').disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email:window.ROOM_EMAIL,password});
+  $('gateBtn').disabled=false;
+  if(error){
+    console.error('login error:',error);
+    $('gateErr').textContent=error.status===400?'パスワードが違います。':'ログインできませんでした: '+error.message;
+    $('pwInput').select();return;
+  }
+  $('gate').close();enter();
+}
+$('gateBtn').addEventListener('click',unlock);
+$('pwInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.isComposing){e.preventDefault();unlock()} });
+$('gate').addEventListener('cancel',e=>e.preventDefault());
+
+(async()=>{
+  if(demo){enter();return}
+  const {data}=await sb.auth.getSession();
+  if(data.session)enter(); else showGate();
+})();
