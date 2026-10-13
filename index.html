@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F0EEF8">
 <title>ことりば</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,20 +15,40 @@
 <div class="app">
   <header>
     <button class="icon" id="back" hidden aria-label="部屋の一覧へ戻る">←</button>
-    <div><h1 id="title">ことりば</h1><p id="sub">ひとことから始まる、みんなの部屋</p></div>
+    <div class="brand"><h1 id="title">ことりば</h1><p id="sub">ひとことから始まる、みんなの部屋</p></div>
     <div class="status" id="status"><span class="dot"></span><span id="statusText">接続中</span></div>
     <button class="icon" id="settingsBtn" hidden aria-label="部屋の設定">⚙</button>
   </header>
 
   <section id="lobby">
     <div class="bar">
-      <span class="me-name"><span id="meText"></span><button id="renameBtn">変更</button></span>
-      <button class="send" id="makeBtn0">部屋をつくる</button>
+      <span class="me-name"><span id="meText"></span><button id="renameBtn" type="button">変更</button></span>
+      <button class="send" id="makeBtn0" type="button">部屋をつくる</button>
     </div>
     <div id="rooms"></div>
   </section>
 
   <section id="chat" hidden>
+    <div id="onlinePanel" class="online-panel" aria-label="オンラインメンバー">
+      <div class="online-top">
+        <div class="online-title">
+          <span class="online-sparkle" aria-hidden="true">✳</span>
+          <div>
+            <div class="online-heading">この部屋にいる人</div>
+            <div class="online-caption">いま、おしゃべりできるメンバー</div>
+          </div>
+        </div>
+        <div class="online-count-wrap" aria-live="polite" aria-atomic="true">
+          <span class="online-indicator"></span>
+          <span id="onlineCount">0</span>
+          <span class="online-count-label">人</span>
+        </div>
+      </div>
+      <div class="online-divider"></div>
+      <div id="onlineMembers" class="online-members" aria-live="polite">
+        <span class="online-empty">みんなの到着を待っています…</span>
+      </div>
+    </div>
     <main id="feed" aria-live="polite"></main>
     <form id="form">
       <textarea id="input" rows="1" maxlength="1000" placeholder="メッセージを書く（Enterで送信、Shift+Enterで改行）" aria-label="メッセージ"></textarea>
@@ -40,7 +61,7 @@
   <h2>はじめまして</h2>
   <p>部屋で使う名前を決めてください。あとから変えられます。</p>
   <input id="nameInput" maxlength="20" placeholder="例: みどり" aria-label="表示名" autocomplete="nickname">
-  <div class="stack"><button class="send" id="joinBtn">決定</button></div>
+  <div class="stack"><button class="send" id="joinBtn" type="button">決定</button></div>
 </dialog>
 
 <dialog id="gate">
@@ -48,7 +69,7 @@
   <p>この部屋のパスワードを入れてください。</p>
   <input id="pwInput" type="password" placeholder="パスワード" aria-label="パスワード" autocomplete="off">
   <p class="err" id="gateErr" role="alert"></p>
-  <div class="stack"><button class="send" id="gateBtn">入る</button><button class="send ghost" id="gateCancel">キャンセル</button></div>
+  <div class="stack"><button class="send" id="gateBtn" type="button">入る</button><button class="send ghost" id="gateCancel" type="button">キャンセル</button></div>
 </dialog>
 
 <dialog id="make">
@@ -57,7 +78,7 @@
   <input id="roomName" maxlength="30" placeholder="部屋の名前" aria-label="部屋の名前">
   <input id="roomPw" type="password" placeholder="パスワード（任意・4文字以上）" aria-label="パスワード" autocomplete="new-password">
   <p class="err" id="makeErr" role="alert"></p>
-  <div class="stack"><button class="send" id="makeBtn">つくる</button><button class="send ghost" id="makeCancel">キャンセル</button></div>
+  <div class="stack"><button class="send" id="makeBtn" type="button">つくる</button><button class="send ghost" id="makeCancel" type="button">キャンセル</button></div>
 </dialog>
 
 <dialog id="cfg">
@@ -67,9 +88,9 @@
   <label class="chk"><input type="checkbox" id="kick">今いるほかのメンバーを退室させる</label>
   <p class="err" id="cfgErr" role="alert"></p>
   <div class="stack">
-    <button class="send" id="cfgSave">保存</button>
-    <button class="send danger" id="cfgDelete">この部屋を削除</button>
-    <button class="send ghost" id="cfgClose">閉じる</button>
+    <button class="send" id="cfgSave" type="button">保存</button>
+    <button class="send danger" id="cfgDelete" type="button">この部屋を削除</button>
+    <button class="send ghost" id="cfgClose" type="button">閉じる</button>
   </div>
 </dialog>
 <div class="toast" id="toast" hidden role="status"></div>
