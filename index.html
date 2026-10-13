@@ -1,0 +1,136 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171319">
+  <meta name="description" content="TanChat - Your community chat.">
+  <title>TanChat</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Supabase JavaScript SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <!-- Authentication -->
+  <section id="auth-screen" class="auth-screen">
+    <form id="auth-form" class="auth-card">
+      <div class="brand-mark">T</div>
+      <h1>TanChat</h1>
+      <p class="subtitle">Your community. Your conversation.</p>
+
+      <label for="email">Email address</label>
+      <input
+        id="email"
+        type="email"
+        placeholder="you@example.com"
+        autocomplete="email"
+        required
+      >
+
+      <label for="password">Password</label>
+      <input
+        id="password"
+        type="password"
+        placeholder="At least 8 characters"
+        minlength="8"
+        autocomplete="current-password"
+        required
+      >
+
+      <label for="username">Display name <span>(for sign up)</span></label>
+      <input
+        id="username"
+        type="text"
+        placeholder="Your name"
+        maxlength="32"
+        autocomplete="nickname"
+      >
+
+      <button id="login-button" type="submit">Log in</button>
+      <button id="signup-button" type="button" class="secondary">
+        Create account
+      </button>
+
+      <p id="auth-status" class="status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- Main chat application -->
+  <main id="chat-screen" class="app" hidden>
+    <aside class="server-sidebar">
+      <button class="server-icon active" aria-label="TanChat server">T</button>
+      <div class="sidebar-divider"></div>
+      <div class="server-icon muted-icon" aria-label="More servers">+</div>
+    </aside>
+
+    <aside class="channel-sidebar">
+      <header class="workspace-header">
+        <span>TanChat</span>
+        <span class="pink-dot"></span>
+      </header>
+
+      <div class="channel-section-title">TEXT CHANNELS</div>
+
+      <button class="channel active" type="button">
+        <span>#</span> general
+      </button>
+
+      <div class="sidebar-bottom">
+        <div class="user-avatar" id="user-avatar">T</div>
+        <div class="user-info">
+          <strong id="current-user">User</strong>
+          <span class="online-label">Online</span>
+        </div>
+        <button id="logout-button" class="logout-button"
+          type="button" title="Log out" aria-label="Log out">
+          ↪
+        </button>
+      </div>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-header">
+        <div class="channel-title">
+          <span class="hash">#</span>
+          <strong>general</strong>
+        </div>
+        <div class="header-right">
+          <span class="connection-dot"></span>
+          <span id="connection-status">Connecting...</span>
+        </div>
+      </header>
+
+      <div id="messages" class="messages"
+        role="log" aria-live="polite" aria-label="Chat messages">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon">#</div>
+          <h2>Welcome to #general</h2>
+          <p>This is the beginning of your community.</p>
+        </div>
+      </div>
+
+      <form id="message-form" class="message-form">
+        <input
+          id="message-input"
+          type="text"
+          maxlength="2000"
+          placeholder="Message #general"
+          autocomplete="off"
+          aria-label="Message"
+          required
+        >
+        <button id="send-button" type="submit" aria-label="Send message">
+          Send <span>➤</span>
+        </button>
+      </form>
+
+      <p id="chat-status" class="chat-status"
+        role="status" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>
