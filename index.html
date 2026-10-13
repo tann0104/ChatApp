@@ -24,6 +24,14 @@
   </form>
 </div>
 
+<dialog id="gate">
+  <h2>合言葉を入力</h2>
+  <p>部屋のパスワードを入れてください。</p>
+  <input id="pwInput" type="password" placeholder="パスワード" aria-label="パスワード" autocomplete="current-password">
+  <p id="gateErr" role="alert" style="color:#D6336C;margin:-6px 0 14px;min-height:1.4em"></p>
+  <button class="send" id="gateBtn" style="width:100%">入る</button>
+</dialog>
+
 <dialog id="join">
   <h2>はじめまして</h2>
   <p>部屋で使う名前を決めてください。あとから変えられます。</p>
