@@ -1,19 +1,238 @@
 
-<label for="username">Username</label>
-<input
-  id="username"
-  type="text"
-  minlength="3"
-  maxlength="20"
-  autocomplete="username"
-  required
-/>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<label for="password">Password</label>
-<input
-  id="password"
-  type="password"
-  minlength="10"
-  autocomplete="current-password"
-  required
-/>
+  <title>TanChat</title>
+  <meta
+    name="description"
+    content="TanChat - A simple real-time chat."
+  >
+  <meta name="theme-color" content="#171719">
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- App configuration -->
+  <script src="./config.js" defer></script>
+
+  <!-- Chat application -->
+  <script src="./app.js" defer></script>
+</head>
+
+<body>
+  <div class="app-container">
+
+    <!-- ================================== -->
+    <!-- Authentication -->
+    <!-- ================================== -->
+    <main id="authView" class="auth-view">
+      <section class="auth-card">
+
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">T</div>
+          <h1>TanChat</h1>
+          <p class="brand-subtitle">
+            Your space. Your conversations.
+          </p>
+        </div>
+
+        <div class="auth-heading">
+          <h2>Welcome to TanChat</h2>
+          <p>ログインするか、新しいアカウントを作成してください。</p>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <div class="form-group">
+            <label for="username">ユーザー名</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              placeholder="username"
+              minlength="3"
+              maxlength="20"
+              pattern="[A-Za-z0-9_]{3,20}"
+              autocomplete="username"
+              required
+            >
+            <small>英字・数字・_ を使用（3〜20文字）</small>
+          </div>
+
+          <div class="form-group">
+            <label for="password">パスワード</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="10文字以上"
+              minlength="10"
+              autocomplete="current-password"
+              required
+            >
+          </div>
+
+          <p
+            id="authMessage"
+            class="status-message"
+            role="status"
+            aria-live="polite"
+          ></p>
+
+          <div class="auth-buttons">
+            <button
+              id="loginBtn"
+              class="button button-primary"
+              type="submit"
+            >
+              ログイン
+            </button>
+
+            <button
+              id="registerBtn"
+              class="button button-secondary"
+              type="submit"
+            >
+              新規登録
+            </button>
+          </div>
+        </form>
+
+        <p class="auth-footer">
+          TanChat <span>•</span> Connect with everyone
+        </p>
+
+      </section>
+    </main>
+
+    <!-- ================================== -->
+    <!-- Chat -->
+    <!-- ================================== -->
+    <main id="chatView" class="chat-view" hidden>
+
+      <!-- Server sidebar -->
+      <aside class="server-sidebar">
+        <div class="server-logo" title="TanChat">T</div>
+        <div class="sidebar-divider"></div>
+
+        <button
+          class="server-icon active"
+          type="button"
+          aria-label="General server"
+          title="TanChat"
+        >
+          T
+        </button>
+      </aside>
+
+      <!-- Channel sidebar -->
+      <aside class="channel-sidebar">
+        <header class="workspace-header">
+          <span class="workspace-name">TanChat</span>
+          <span class="workspace-arrow" aria-hidden="true">⌄</span>
+        </header>
+
+        <div class="channel-section">
+          <div class="section-heading">
+            <span>TEXT CHANNELS</span>
+          </div>
+
+          <button class="channel-item active" type="button">
+            <span class="channel-hash">#</span>
+            <span>general</span>
+          </button>
+        </div>
+
+        <div class="channel-info">
+          <p>Welcome to TanChat!</p>
+          <small>Keep the conversation going.</small>
+        </div>
+
+        <footer class="user-panel">
+          <div class="user-avatar" aria-hidden="true">T</div>
+
+          <div class="user-details">
+            <span id="currentUsername" class="user-name">Player</span>
+            <span class="user-status">Online</span>
+          </div>
+
+          <button
+            id="logoutBtn"
+            class="logout-button"
+            type="button"
+            title="ログアウト"
+            aria-label="ログアウト"
+          >
+            ↪
+          </button>
+        </footer>
+      </aside>
+
+      <!-- Main chat area -->
+      <section class="chat-main">
+        <header class="chat-header">
+          <div class="chat-title">
+            <span class="chat-hash">#</span>
+            <h2>general</h2>
+          </div>
+          <div class="chat-header-right">
+            <span class="connection-dot"></span>
+            <span>TanChat</span>
+          </div>
+        </header>
+
+        <div
+          id="messages"
+          class="messages-container"
+          role="log"
+          aria-label="チャットメッセージ"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
+          <div class="welcome-message">
+            <div class="welcome-icon">#</div>
+            <h2>Welcome to #general!</h2>
+            <p>ここから会話を始めよう。</p>
+          </div>
+        </div>
+
+        <div class="message-input-area">
+          <form id="messageForm" class="message-form">
+            <label for="messageInput" class="visually-hidden">
+              メッセージ
+            </label>
+
+            <textarea
+              id="messageInput"
+              name="message"
+              placeholder="#general にメッセージを送信"
+              maxlength="2000"
+              rows="1"
+              required
+            ></textarea>
+
+            <button
+              class="send-button"
+              type="submit"
+              aria-label="メッセージを送信"
+              title="送信"
+            >
+              ➤
+            </button>
+          </form>
+
+          <p class="message-hint">
+            Enterで送信するには、送信ボタンを使用してください。
+          </p>
+        </div>
+      </section>
+    </main>
+
+  </div>
+</body>
+</html>
