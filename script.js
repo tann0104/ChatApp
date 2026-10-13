@@ -1,190 +1,738 @@
-// 接続情報は config.js (window.SUPABASE_URL / window.SUPABASE_KEY)
-const $ = id => document.getElementById(id);
-const store = { get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}} };
-const COLORS = ['#FFC8D7','#FFE29A','#BFE8FF','#CDBEFF','#B7F0D4','#FFCDA8'];
-const SHAPES = ['50%','42% 58% 55% 45% / 50% 45% 55% 50%','58% 42% 40% 60% / 55% 50% 50% 45%','46% 54% 60% 40% / 42% 58% 42% 58%'];
-const hash = s => [...s].reduce((a,c)=>(a*31+c.codePointAt(0))>>>0,7);
-const fmt = d => new Date(d).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-const onEnter = (el,fn) => el.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.isComposing){e.preventDefault();fn()} });
-function blob(el,name){const h=hash(name);el.style.background=COLORS[h%COLORS.length];el.style.borderRadius=SHAPES[(h>>3)%SHAPES.length];el.textContent=[...name][0]||'?'}
-function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.id);toast.id=setTimeout(()=>t.hidden=true,4000)}
-function setStatus(on,text){$('status').classList.toggle('on',on);$('statusText').textContent=text}
 
-let sb, uid=null, me=store.get('kotoriba-name')||'', room=null, messages=[], channel=null, pending=null;
-const feed=$('feed'), input=$('input'), sendBtn=$('send');
+/*
+ * ことりば - Chat Application
+ * Supabase Realtime + Online Member Presence
+ *
+ * Required:
+ *   config.js
+ *   window.SUPABASE_URL
+ *   window.SUPABASE_KEY
+ */
 
-// ---------- 部屋の一覧 ----------
-async function showLobby(){
-  if(channel){sb.removeChannel(channel);channel=null}
-  room=null;
-  $('chat').hidden=true;$('lobby').hidden=false;$('back').hidden=true;$('settingsBtn').hidden=true;
-  $('title').textContent='ことりば';$('sub').textContent='ひとことから始まる、みんなの部屋';
-  const [r,m]=await Promise.all([
-    sb.from('rooms').select('*').order('created_at',{ascending:false}),
-    sb.from('room_members').select('room_id')
-  ]);
-  if(r.error){console.error(r.error);toast('部屋の一覧を読み込めませんでした: '+r.error.message);return}
-  const joined=new Set((m.data||[]).map(x=>x.room_id));
-  const box=$('rooms');box.textContent='';
-  if(!r.data.length){
-    const e=document.createElement('div');e.className='empty';e.style.margin='40px auto';
-    e.innerHTML='<b>まだ部屋がありません</b>「部屋をつくる」から最初の部屋をつくりましょう。';
-    box.append(e);return;
-  }
-  for(const x of r.data){
-    const own=x.owner_id===uid, isIn=joined.has(x.id);
-    const b=document.createElement('button');b.className='room'+(own?' own':'');
-    const av=document.createElement('div');av.className='av';blob(av,x.name);
-    const nm=document.createElement('span');nm.className='nm';nm.textContent=x.name;
-    const tag=document.createElement('span');tag.className='tag';tag.textContent=own?'オーナー':isIn?'参加中':x.has_password?'パスワードあり':'だれでも入れる';
-    b.append(av,nm,tag);
-    b.onclick=()=>isIn?openRoom(x):x.has_password?askPassword(x):joinFree(x);
-    box.append(b);
-  }
-}
+(() => {
+    "use strict";
 
-// ---------- 部屋に入る ----------
-function askPassword(r){
-  pending=r;$('gateTitle').textContent=r.name;$('pwInput').value='';$('gateErr').textContent='';
-  $('gate').showModal();$('pwInput').focus();
-}
-async function tryJoin(){
-  const password=$('pwInput').value;
-  if(!password||!pending)return;
-  $('gateBtn').disabled=true;
-  const {data,error}=await sb.rpc('join_room',{p_room:pending.id,p_password:password});
-  $('gateBtn').disabled=false;
-  if(error){console.error(error);$('gateErr').textContent='入室できませんでした: '+error.message;return}
-  if(data!==true){$('gateErr').textContent='パスワードが違います。';$('pwInput').select();return}
-  $('gate').close();openRoom(pending);
-}
+    const SUPABASE_URL = window.SUPABASE_URL;
+    const SUPABASE_KEY = window.SUPABASE_KEY;
 
-async function joinFree(r){
-  const {data,error}=await sb.rpc('join_room',{p_room:r.id,p_password:''});
-  if(error||data!==true){console.error(error);toast('入室できませんでした。');return}
-  openRoom(r);
-}
+    if (!window.supabase) {
+        console.error("Supabase JS library is not loaded.");
+        return;
+    }
 
-async function openRoom(r){
-  room=r;messages=[];render();
-  const owner=r.owner_id===uid;
-  $('lobby').hidden=true;$('chat').hidden=false;$('back').hidden=false;$('settingsBtn').hidden=!owner;
-  $('title').textContent=r.name;$('sub').textContent=owner?'あなたがオーナーの部屋':'参加中の部屋';
-  const {data,error}=await sb.from('chat_messages').select('*').eq('room_id',r.id).order('created_at',{ascending:false}).limit(100);
-  if(error){console.error(error);toast('メッセージを読み込めませんでした: '+error.message);return}
-  if(!room||room.id!==r.id)return;
-  messages=data.reverse();render();input.focus();
-  channel=sb.channel('room-'+r.id)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'room_id=eq.'+r.id},p=>add(p.new))
-    .subscribe(s=>{ if(s==='SUBSCRIBED')setStatus(true,'オンライン'); else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT')setStatus(false,'再接続中') });
-}
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+        console.error(
+            "Supabase configuration is missing. Check config.js."
+        );
+        return;
+    }
 
-// ---------- メッセージ ----------
-function render(){
-  feed.textContent='';
-  if(!messages.length){
-    const e=document.createElement('div');e.className='empty';
-    e.innerHTML='<b>まだ静かです</b>最初のひとことを送ってみましょう。';
-    feed.append(e);return;
-  }
-  let prev=null;
-  for(const m of messages){
-    const mine=m.user_id===uid;
-    const first=!prev||prev.user_id!==m.user_id||prev.name!==m.name||new Date(m.created_at)-new Date(prev.created_at)>180000;
-    const row=document.createElement('div');
-    row.className='row'+(mine?' me':'')+(first?' first':'');
-    const av=document.createElement('div');av.className='av'+(first?'':' ghost');blob(av,m.name);
-    const col=document.createElement('div');col.className='col';
-    if(first&&!mine){const meta=document.createElement('div');meta.className='meta';meta.textContent=m.name;col.append(meta)}
-    const b=document.createElement('div');b.className='bubble';b.textContent=m.body;col.append(b);
-    const t=document.createElement('div');t.className='time';t.textContent=fmt(m.created_at);
-    row.append(av,col,t);feed.append(row);
-    prev=m;
-  }
-  feed.scrollTop=feed.scrollHeight;
-}
-function add(m){ if(m.id&&messages.some(x=>x.id===m.id))return; messages.push(m); render(); }
+    const sb = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
 
-async function send(){
-  const body=input.value.trim();
-  if(!body||!room)return;
-  input.value='';grow();sendBtn.disabled=true;
-  const {error}=await sb.from('chat_messages').insert({room_id:room.id,name:me,body});
-  if(error){console.error(error);input.value=body;grow();sendBtn.disabled=false;toast('送信できませんでした: '+error.message)}
-}
-function grow(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,140)+'px'}
-input.addEventListener('input',()=>{grow();sendBtn.disabled=!input.value.trim()});
-onEnter(input,()=>$('form').requestSubmit());
-$('form').addEventListener('submit',e=>{e.preventDefault();send()});
+    const $ = (id) => document.getElementById(id);
 
-// ---------- 部屋をつくる ----------
-function openMake(){
-  $('roomName').value='';$('roomPw').value='';$('makeErr').textContent='';
-  $('make').showModal();$('roomName').focus();
-}
-async function createRoom(){
-  const name=$('roomName').value.trim(), pw=$('roomPw').value;
-  if(!name){$('roomName').focus();return}
-  if(pw&&pw.length<4){$('makeErr').textContent='パスワードは4文字以上にしてください。';return}
-  $('makeBtn').disabled=true;
-  const {data,error}=await sb.rpc('create_room',{p_name:name,p_password:pw});
-  $('makeBtn').disabled=false;
-  if(error){console.error(error);$('makeErr').textContent='作成できませんでした: '+error.message;return}
-  $('make').close();
-  const {data:r}=await sb.from('rooms').select('*').eq('id',data).single();
-  if(r)openRoom(r);else showLobby();
-}
+    const state = {
+        user: null,
+        room: null,
+        name: localStorage.getItem("kotoriba_name") || "",
+        channel: null,
+        messageChannel: null,
+        messages: [],
+        rooms: [],
+        presence: {},
+        joining: false,
+        sending: false
+    };
 
-// ---------- オーナー設定 ----------
-function openCfg(){$('newPw').value='';$('kick').checked=false;$('cfgErr').textContent='';$('cfg').showModal()}
-async function saveCfg(){
-  const pw=$('newPw').value;
-  if(pw&&pw.length<4){$('cfgErr').textContent='パスワードは4文字以上にしてください。';return}
-  const {error}=await sb.rpc('set_room_password',{p_room:room.id,p_password:pw,p_kick:$('kick').checked});
-  if(error){console.error(error);$('cfgErr').textContent='変更できませんでした: '+error.message;return}
-  $('cfg').close();toast(pw?'パスワードを変更しました。':'パスワードを解除しました。');
-}
-async function deleteRoom(){
-  if(!confirm('「'+room.name+'」を削除します。メッセージもすべて消え、元に戻せません。'))return;
-  const {error}=await sb.from('rooms').delete().eq('id',room.id);
-  if(error){console.error(error);$('cfgErr').textContent='削除できませんでした: '+error.message;return}
-  $('cfg').close();toast('部屋を削除しました。');showLobby();
-}
+    const escapeHTML = (value) =>
+        String(value ?? "").replace(/[&<>"']/g, (char) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[char]);
 
-// ---------- 名前 ----------
-function showName(){$('meText').textContent='名前: '+(me||'未設定')}
-function askName(){$('nameInput').value=me;$('join').showModal();$('nameInput').focus()}
-function setName(){
-  const n=$('nameInput').value.trim();
-  if(!n){$('nameInput').focus();return}
-  me=n;store.set('kotoriba-name',n);showName();$('join').close();
-}
+    const formatTime = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
 
-// ---------- イベント ----------
-$('back').onclick=showLobby;
-$('settingsBtn').onclick=openCfg;
-$('makeBtn0').onclick=openMake;
-$('makeBtn').onclick=createRoom;$('makeCancel').onclick=()=>$('make').close();
-onEnter($('roomPw'),createRoom);
-$('gateBtn').onclick=tryJoin;$('gateCancel').onclick=()=>$('gate').close();
-onEnter($('pwInput'),tryJoin);
-$('cfgSave').onclick=saveCfg;$('cfgDelete').onclick=deleteRoom;$('cfgClose').onclick=()=>$('cfg').close();
-$('renameBtn').onclick=askName;
-$('joinBtn').onclick=setName;onEnter($('nameInput'),setName);
-$('join').addEventListener('cancel',e=>{ if(!me)e.preventDefault() });
+        return date.toLocaleTimeString("ja-JP", {
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    };
 
-// ---------- 起動 ----------
-(async()=>{
-  showName();
-  if(!window.SUPABASE_URL||!window.SUPABASE_KEY){toast('config.js に SUPABASE_URL と SUPABASE_KEY を設定してください。');setStatus(false,'未設定');return}
-  sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_KEY,{db:{schema:'public'}});
-  let {data:{session}}=await sb.auth.getSession();
-  if(!session){
-    const {data,error}=await sb.auth.signInAnonymously();
-    if(error){console.error(error);toast('ログインできませんでした: '+error.message);setStatus(false,'未接続');return}
-    session=data.session;
-  }
-  uid=session.user.id;setStatus(true,'オンライン');
-  if(!me)askName();
-  showLobby();
+    function setText(id, value) {
+        const element = $(id);
+        if (element) element.textContent = value;
+    }
+
+    function show(element) {
+        if (element) element.hidden = false;
+    }
+
+    function hide(element) {
+        if (element) element.hidden = true;
+    }
+
+    function setStatus(message, isError = false) {
+        const status = $("statusMessage") || $("status");
+        if (!status) return;
+
+        status.textContent = message;
+        status.dataset.state = isError ? "error" : "normal";
+    }
+
+    function getName() {
+        const input = $("nameInput") || $("displayName");
+        return (
+            input?.value?.trim() ||
+            state.name ||
+            "Guest"
+        ).slice(0, 24);
+    }
+
+    function saveName(name) {
+        state.name = name;
+        localStorage.setItem("kotoriba_name", name);
+    }
+
+    async function ensureAuth() {
+        const { data, error } = await sb.auth.getSession();
+
+        if (error) throw error;
+
+        if (data.session?.user) {
+            state.user = data.session.user;
+            return state.user;
+        }
+
+        const { data: authData, error: authError } =
+            await sb.auth.signInAnonymously();
+
+        if (authError) throw authError;
+
+        state.user = authData.user;
+        return state.user;
+    }
+
+    function showLobby() {
+        state.room = null;
+        state.messages = [];
+        state.presence = {};
+
+        if (state.channel) {
+            sb.removeChannel(state.channel);
+            state.channel = null;
+        }
+
+        if (state.messageChannel) {
+            sb.removeChannel(state.messageChannel);
+            state.messageChannel = null;
+        }
+
+        hide($("chatScreen"));
+        show($("lobbyScreen"));
+
+        renderOnlineMembers();
+        loadRooms();
+    }
+
+    function showChat() {
+        show($("chatScreen"));
+        hide($("lobbyScreen"));
+
+        setText(
+            "roomTitle",
+            state.room?.name || "チャットルーム"
+        );
+
+        setText(
+            "currentRoomName",
+            state.room?.name || "チャットルーム"
+        );
+    }
+
+    async function loadRooms() {
+        const list = $("roomList") || $("roomsList");
+        if (!list) return;
+
+        list.innerHTML = "<p>ルームを読み込み中...</p>";
+
+        const { data, error } = await sb
+            .from("rooms")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+        if (error) {
+            console.error("Failed to load rooms:", error);
+            list.innerHTML =
+                "<p>ルームを読み込めませんでした。</p>";
+            return;
+        }
+
+        state.rooms = data || [];
+        renderRooms();
+    }
+
+    function renderRooms() {
+        const list = $("roomList") || $("roomsList");
+        if (!list) return;
+
+        if (!state.rooms.length) {
+            list.innerHTML =
+                "<p class='empty-message'>ルームがありません。新しく作成してみよう！</p>";
+            return;
+        }
+
+        list.innerHTML = state.rooms.map((room) => {
+            const roomName = escapeHTML(
+                room.name || room.title || "名前のないルーム"
+            );
+
+            const locked = Boolean(
+                room.password_hash ||
+                room.has_password ||
+                room.is_private
+            );
+
+            return `
+                <button
+                    type="button"
+                    class="room-item"
+                    data-room-id="${escapeHTML(room.id)}"
+                >
+                    <span class="room-item-name">${roomName}</span>
+                    ${locked
+                        ? '<span class="room-lock" aria-label="パスワード保護">🔒</span>'
+                        : ""}
+                </button>
+            `;
+        }).join("");
+
+        list.querySelectorAll("[data-room-id]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const room = state.rooms.find(
+                    (item) =>
+                        String(item.id) === button.dataset.roomId
+                );
+
+                if (room) openRoom(room);
+            });
+        });
+    }
+
+    async function createRoom() {
+        const nameInput = $("newRoomName") || $("roomNameInput");
+        const roomName = nameInput?.value?.trim();
+
+        if (!roomName) {
+            setStatus("ルーム名を入力してください。", true);
+            return;
+        }
+
+        if (!state.user) {
+            setStatus("ログイン処理中です。", true);
+            return;
+        }
+
+        const passwordInput = $("newRoomPassword");
+        const password = passwordInput?.value || "";
+
+        setStatus("ルームを作成中...");
+
+        /*
+         * This calls the existing create_room RPC.
+         * Adjust argument names if your database function
+         * uses a different signature.
+         */
+        const { data, error } = await sb.rpc("create_room", {
+            room_name: roomName,
+            room_password: password || null
+        });
+
+        if (error) {
+            console.error("Failed to create room:", error);
+            setStatus(
+                "ルームを作成できませんでした。設定を確認してください。",
+                true
+            );
+            return;
+        }
+
+        let createdRoom = null;
+
+        if (Array.isArray(data)) {
+            createdRoom = data[0] || null;
+        } else if (data && typeof data === "object") {
+            createdRoom = data;
+        }
+
+        if (createdRoom?.room_id && !createdRoom.id) {
+            createdRoom.id = createdRoom.room_id;
+        }
+
+        if (createdRoom?.id) {
+            await openRoom(createdRoom);
+        } else {
+            await loadRooms();
+            setStatus("ルームを作成しました。");
+        }
+
+        if (nameInput) nameInput.value = "";
+        if (passwordInput) passwordInput.value = "";
+    }
+
+    async function openRoom(room) {
+        if (!room?.id) {
+            setStatus("ルーム情報が正しくありません。", true);
+            return;
+        }
+
+        if (state.channel) {
+            await sb.removeChannel(state.channel);
+            state.channel = null;
+        }
+
+        if (state.messageChannel) {
+            await sb.removeChannel(state.messageChannel);
+            state.messageChannel = null;
+        }
+
+        state.room = room;
+        state.messages = [];
+        state.presence = {};
+
+        showChat();
+
+        const name = getName();
+        saveName(name);
+
+        await joinRoomRecord(room, name);
+        await loadMessages(room.id);
+        subscribeToRoom(room.id);
+
+        renderOnlineMembers();
+    }
+
+    async function joinRoomRecord(room, name) {
+        /*
+         * Uses the existing join_room RPC.
+         * If your original RPC has different parameter names,
+         * keep the parameter names from your current project.
+         */
+        const { error } = await sb.rpc("join_room", {
+            room_id: room.id,
+            member_name: name
+        });
+
+        if (error) {
+            /*
+             * Presence can still display online members even if
+             * this optional database membership call is blocked.
+             */
+            console.warn("join_room RPC:", error.message);
+        }
+    }
+
+    async function loadMessages(roomId) {
+        const feed = $("chatMessages") || $("messages");
+        if (!feed) return;
+
+        feed.innerHTML = "<p>メッセージを読み込み中...</p>";
+
+        const { data, error } = await sb
+            .from("chat_messages")
+            .select("*")
+            .eq("room_id", roomId)
+            .order("created_at", { ascending: true });
+
+        if (error) {
+            console.error("Failed to load messages:", error);
+            feed.innerHTML =
+                "<p>メッセージを読み込めませんでした。</p>";
+            return;
+        }
+
+        state.messages = data || [];
+        renderMessages();
+    }
+
+    function renderMessages() {
+        const feed = $("chatMessages") || $("messages");
+        if (!feed) return;
+
+        if (!state.messages.length) {
+            feed.innerHTML =
+                "<p class='empty-message'>まだメッセージがありません。最初のメッセージを送ろう！</p>";
+            return;
+        }
+
+        feed.innerHTML = state.messages.map((message) => {
+            const author = escapeHTML(
+                message.member_name ||
+                message.user_name ||
+                message.username ||
+                "Guest"
+            );
+
+            const content = escapeHTML(
+                message.content ||
+                message.message ||
+                ""
+            );
+
+            const time = escapeHTML(
+                formatTime(message.created_at)
+            );
+
+            const ownMessage =
+                message.user_id &&
+                state.user?.id &&
+                message.user_id === state.user.id;
+
+            return `
+                <article class="message${ownMessage ? " own-message" : ""}">
+                    <div class="message-header">
+                        <span class="message-author">${author}</span>
+                        <time class="message-time">${time}</time>
+                    </div>
+                    <div class="message-content">${content}</div>
+                </article>
+            `;
+        }).join("");
+
+        feed.scrollTop = feed.scrollHeight;
+    }
+
+    async function sendMessage() {
+        if (state.sending) return;
+        if (!state.room || !state.user) {
+            setStatus("ルームに参加してください。", true);
+            return;
+        }
+
+        const input = $("messageInput") || $("message");
+        const content = input?.value?.trim();
+
+        if (!content) return;
+
+        state.sending = true;
+
+        try {
+            const { error } = await sb
+                .from("chat_messages")
+                .insert({
+                    room_id: state.room.id,
+                    user_id: state.user.id,
+                    member_name: getName(),
+                    content
+                });
+
+            if (error) throw error;
+
+            input.value = "";
+            input.focus();
+        } catch (error) {
+            console.error("Failed to send message:", error);
+            setStatus(
+                "メッセージを送信できませんでした。",
+                true
+            );
+        } finally {
+            state.sending = false;
+        }
+    }
+
+    function subscribeToRoom(roomId) {
+        /*
+         * Presence is temporary realtime state.
+         * It does not require an online-members database table.
+         */
+        const channel = sb.channel(`kotoriba-room-${roomId}`, {
+            config: {
+                presence: {
+                    key: state.user.id
+                }
+            }
+        });
+
+        state.channel = channel;
+
+        channel
+            .on("presence", { event: "sync" }, () => {
+                state.presence = channel.presenceState();
+                renderOnlineMembers();
+            })
+            .on("presence", { event: "join" }, () => {
+                state.presence = channel.presenceState();
+                renderOnlineMembers();
+            })
+            .on("presence", { event: "leave" }, () => {
+                state.presence = channel.presenceState();
+                renderOnlineMembers();
+            })
+            .subscribe(async (status) => {
+                if (status === "SUBSCRIBED") {
+                    try {
+                        await channel.track({
+                            user_id: state.user.id,
+                            name: getName(),
+                            online_at: new Date().toISOString()
+                        });
+                    } catch (error) {
+                        console.error(
+                            "Failed to register presence:",
+                            error
+                        );
+                    }
+                }
+            });
+
+        const messageChannel = sb
+            .channel(`kotoriba-messages-${roomId}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "chat_messages",
+                    filter: `room_id=eq.${roomId}`
+                },
+                (payload) => {
+                    if (payload.eventType === "INSERT") {
+                        const newMessage = payload.new;
+
+                        const exists = state.messages.some(
+                            (item) => item.id === newMessage.id
+                        );
+
+                        if (!exists) {
+                            state.messages.push(newMessage);
+                            renderMessages();
+                        }
+                    } else if (
+                        payload.eventType === "UPDATE" ||
+                        payload.eventType === "DELETE"
+                    ) {
+                        loadMessages(roomId);
+                    }
+                }
+            )
+            .subscribe((status) => {
+                if (status === "CHANNEL_ERROR") {
+                    console.error(
+                        "Message realtime channel error."
+                    );
+                }
+            });
+
+        state.messageChannel = messageChannel;
+    }
+
+    function getUniqueOnlineMembers() {
+        const members = new Map();
+
+        for (const [, entries] of Object.entries(state.presence || {})) {
+            if (!Array.isArray(entries)) continue;
+
+            for (const entry of entries) {
+                const userId = entry.user_id;
+                if (!userId) continue;
+
+                /*
+                 * Deduplicate by user ID so multiple tabs
+                 * do not inflate the online count.
+                 */
+                if (!members.has(userId)) {
+                    members.set(userId, {
+                        user_id: userId,
+                        name: entry.name || "Guest"
+                    });
+                }
+            }
+        }
+
+        return [...members.values()];
+    }
+
+    function renderOnlineMembers() {
+        const countElement =
+            $("onlineCount") ||
+            $("onlineUserCount");
+
+        const listElement =
+            $("onlineMembers") ||
+            $("onlineMemberList");
+
+        const members = getUniqueOnlineMembers();
+
+        if (countElement) {
+            countElement.textContent = String(members.length);
+        }
+
+        if (!listElement) return;
+
+        if (!members.length) {
+            listElement.innerHTML =
+                '<p class="online-empty">オンラインのメンバーはいません</p>';
+            return;
+        }
+
+        listElement.innerHTML = members.map((member) => {
+            const name = escapeHTML(member.name);
+            const isMe = member.user_id === state.user?.id;
+
+            return `
+                <div class="online-member">
+                    <span class="online-indicator" aria-hidden="true"></span>
+                    <span class="online-member-name">${name}</span>
+                    ${isMe
+                        ? '<span class="online-you">あなた</span>'
+                        : ""}
+                </div>
+            `;
+        }).join("");
+    }
+
+    async function changeName() {
+        const name = getName();
+
+        if (!name) {
+            setStatus("名前を入力してください。", true);
+            return;
+        }
+
+        saveName(name);
+
+        if (state.room && state.channel) {
+            try {
+                await state.channel.track({
+                    user_id: state.user.id,
+                    name,
+                    online_at: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error("Failed to update presence:", error);
+            }
+
+            const { error } = await sb
+                .from("room_members")
+                .update({ member_name: name })
+                .eq("room_id", state.room.id)
+                .eq("user_id", state.user.id);
+
+            if (error) {
+                console.warn(
+                    "Could not update room member name:",
+                    error.message
+                );
+            }
+
+            renderOnlineMembers();
+        }
+
+        setStatus("名前を変更しました。");
+    }
+
+    async function leaveRoom() {
+        showLobby();
+    }
+
+    function bindClick(ids, handler) {
+        for (const id of ids) {
+            const element = $(id);
+            if (element) {
+                element.addEventListener("click", handler);
+            }
+        }
+    }
+
+    function bindEnter(ids, handler) {
+        for (const id of ids) {
+            const element = $(id);
+            if (!element) continue;
+
+            element.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    handler();
+                }
+            });
+        }
+    }
+
+    function bindEvents() {
+        bindClick(
+            ["createRoomButton", "createRoomBtn"],
+            createRoom
+        );
+
+        bindClick(
+            ["sendButton", "sendMessageButton"],
+            sendMessage
+        );
+
+        bindClick(
+            ["leaveRoomButton", "backToLobbyButton"],
+            leaveRoom
+        );
+
+        bindClick(
+            ["changeNameButton", "saveNameButton"],
+            changeName
+        );
+
+        bindClick(
+            ["refreshRoomsButton", "refreshRooms"],
+            loadRooms
+        );
+
+        bindEnter(
+            ["messageInput", "message"],
+            sendMessage
+        );
+
+        const nameInput = $("nameInput") || $("displayName");
+        if (nameInput && state.name) {
+            nameInput.value = state.name;
+        }
+    }
+
+    async function init() {
+        bindEvents();
+
+        try {
+            await ensureAuth();
+
+            if (state.name) {
+                saveName(state.name);
+            }
+
+            await loadRooms();
+
+            show($("lobbyScreen"));
+            hide($("chatScreen"));
+
+            renderOnlineMembers();
+            setStatus("ことりばへようこそ！");
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            setStatus(
+                "初期化に失敗しました。Supabase の設定を確認してください。",
+                true
+            );
+        }
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
 })();
