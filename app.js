@@ -4,23 +4,26 @@
 
   // ========================================
   // TanChat - Supabase Chat
+  // Username/password auth via Edge Function
   // ========================================
 
   const SUPABASE_URL = window.SUPABASE_URL;
   const SUPABASE_KEY = window.SUPABASE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error(
-      "[TanChat] Supabase URL or Publishable key is missing."
-    );
-    alert("TanChat configuration is missing. Please check config.js.");
+    console.error("[TanChat] Supabase configuration is missing.");
+    alert("TanChat configuration is missing. Check config.js.");
     return;
   }
 
   if (!window.supabase?.createClient) {
     console.error("[TanChat] Supabase SDK was not loaded.");
+    alert("Supabase SDK could not be loaded.");
     return;
   }
+
+  const AUTH_FUNCTION_URL =
+    `${SUPABASE_URL}/functions/v1/username-auth`;
 
   const supabase = window.supabase.createClient(
     SUPABASE_URL,
@@ -29,14 +32,13 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: false
       }
     }
   );
 
   // ========================================
   // DOM elements
-  // These IDs must match index.html.
   // ========================================
 
   const $ = (id) => document.getElementById(id);
@@ -79,9 +81,7 @@
       "[TanChat] Missing HTML elements:",
       missingElements.join(", ")
     );
-    alert(
-      "TanChat HTML elements are missing. Check the IDs in index.html."
-    );
+    alert("Some TanChat HTML elements are missing. Check index.html.");
     return;
   }
 
@@ -91,10 +91,10 @@
 
   let currentUser = null;
   let channel = null;
-  let pendingAuthAction = "login";
+  let authRequestRunning = false;
   let isSending = false;
   let isLoadingMessages = false;
-  let authRequestRunning = false;
+  let sessionVersion = 0;
 
   const renderedMessageIds = new Set();
 
@@ -104,7 +104,7 @@
 
   function showAuthMessage(message, isError = false) {
     if (!authMessage) {
-      console.log("[TanChat]", message);
+      if (message) console.log("[TanChat]", message);
       return;
     }
 
@@ -116,8 +116,8 @@
     if (registerBtn) registerBtn.disabled = disabled;
     if (loginBtn) loginBtn.disabled = disabled;
 
-    if (usernameInput) usernameInput.disabled = disabled;
-    if (passwordInput) passwordInput.disabled = disabled;
+    usernameInput.disabled = disabled;
+    passwordInput.disabled = disabled;
   }
 
   function showAuthView() {
@@ -130,23 +130,12 @@
     chatView.hidden = false;
   }
 
-  function setMessageStatus(message) {
-    if (messageInput) {
-      messageInput.placeholder = message;
-    }
-  }
-
   function normalizeUsername(value) {
     return value.trim().toLowerCase();
   }
 
   function isValidUsername(username) {
     return /^[a-z0-9_]{3,20}$/.test(username);
-  }
-
-  function usernameToInternalEmail(username) {
-    // Internal identifier only; this is NOT a real email address.
-    return `${normalizeUsername(username)}@users.tanchat.invalid`;
   }
 
   function getUsernameFromUser(user) {
@@ -159,7 +148,6 @@
       return normalizeUsername(metadataUsername);
     }
 
-    // Fallback for older accounts.
     return user?.email?.split("@")[0] || "Player";
   }
 
@@ -167,6 +155,7 @@
     const message = String(error?.message || "").toLowerCase();
 
     if (
+      message.includes("incorrect username or password") ||
       message.includes("invalid login credentials") ||
       message.includes("invalid_credentials")
     ) {
@@ -174,101 +163,105 @@
     }
 
     if (
-      message.includes("user already registered") ||
-      message.includes("already been registered")
+      message.includes("already registered") ||
+      message.includes("already been registered") ||
+      message.includes("username may already be taken")
     ) {
-      return "This username is already registered.";
+      return "This username may already be taken.";
     }
 
-    if (message.includes("password should be at least")) {
-      return "Password must be at least 10 characters.";
+    if (message.includes("username must")) {
+      return "Username must be 3-20 letters, numbers, or underscores.";
     }
 
-    if (
-      message.includes("email not confirmed") ||
-      message.includes("email_not_confirmed")
-    ) {
-      return (
-        "Email confirmation is enabled in Supabase. " +
-        "Review the Auth provider settings."
-      );
+    if (message.includes("password must")) {
+      return "Password must be 10-128 characters.";
     }
 
     if (
       message.includes("failed to fetch") ||
-      message.includes("network")
+      message.includes("networkerror") ||
+      message.includes("network request failed")
     ) {
-      return "Connection failed. Check your internet and Supabase settings.";
+      return "Connection failed. Check your internet connection.";
+    }
+
+    if (message.includes("server configuration error")) {
+      return "Server configuration error. Check the Edge Function settings.";
     }
 
     return error?.message || "An unexpected error occurred.";
   }
 
   // ========================================
-  // Authentication
+  // Username authentication
   // ========================================
 
-  async function registerWithUsername(username, password) {
+  async function authenticateWithUsername(
+    action,
+    username,
+    password
+  ) {
     const normalizedUsername = normalizeUsername(username);
 
     if (!isValidUsername(normalizedUsername)) {
       throw new Error(
-        "Username must be 3-20 characters using letters, numbers, or underscores."
+        "Username must be 3-20 letters, numbers, or underscores."
       );
     }
 
-    if (password.length < 10) {
-      throw new Error("Password must be at least 10 characters.");
+    if (password.length < 10 || password.length > 128) {
+      throw new Error("Password must be 10-128 characters.");
     }
 
-    const internalEmail =
-      usernameToInternalEmail(normalizedUsername);
+    const response = await fetch(AUTH_FUNCTION_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        action,
+        username: normalizedUsername,
+        password
+      })
+    });
 
-    const { data, error } = await supabase.auth.signUp({
-      email: internalEmail,
-      password,
-      options: {
-        data: {
-          username: normalizedUsername
-        }
-      }
+    let result;
+
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        "The authentication server returned an invalid response."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        result?.error || `Authentication failed (${response.status}).`
+      );
+    }
+
+    if (
+      !result?.session?.access_token ||
+      !result?.session?.refresh_token
+    ) {
+      throw new Error("The server did not return a valid session.");
+    }
+
+    // Store the returned session using the Supabase client.
+    const { data, error } = await supabase.auth.setSession({
+      access_token: result.session.access_token,
+      refresh_token: result.session.refresh_token
     });
 
     if (error) throw error;
 
     if (!data.session) {
-      throw new Error(
-        "Account created, but no session was returned. " +
-        "Check Supabase email confirmation settings before trying again."
-      );
+      throw new Error("Could not save the login session.");
     }
-
-    return data;
-  }
-
-  async function loginWithUsername(username, password) {
-    const normalizedUsername = normalizeUsername(username);
-
-    if (!isValidUsername(normalizedUsername)) {
-      throw new Error(
-        "Enter a valid username (3-20 letters, numbers, or underscores)."
-      );
-    }
-
-    if (!password) {
-      throw new Error("Enter your password.");
-    }
-
-    const internalEmail =
-      usernameToInternalEmail(normalizedUsername);
-
-    const { data, error } =
-      await supabase.auth.signInWithPassword({
-        email: internalEmail,
-        password
-      });
-
-    if (error) throw error;
 
     return data;
   }
@@ -289,15 +282,19 @@
           : "Logging in..."
       );
 
-      if (action === "register") {
-        await registerWithUsername(username, password);
-        showAuthMessage("Account created successfully!");
-      } else {
-        await loginWithUsername(username, password);
-        showAuthMessage("Login successful!");
-      }
+      await authenticateWithUsername(
+        action,
+        username,
+        password
+      );
 
       passwordInput.value = "";
+
+      showAuthMessage(
+        action === "register"
+          ? "Account created successfully!"
+          : "Login successful!"
+      );
     } catch (error) {
       console.error("[TanChat] Authentication error:", error);
       showAuthMessage(getAuthErrorMessage(error), true);
@@ -307,22 +304,21 @@
     }
   }
 
-  if (registerBtn) {
-    registerBtn.addEventListener("click", () => {
-      pendingAuthAction = "register";
-    });
-  }
-
-  if (loginBtn) {
-    loginBtn.addEventListener("click", () => {
-      pendingAuthAction = "login";
-    });
-  }
-
+  // Use the actual submit button, including keyboard submission.
   authForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await handleAuthSubmit(pendingAuthAction);
-    pendingAuthAction = "login";
+
+    const submitterId = event.submitter?.id;
+
+    let action = "login";
+
+    if (submitterId === "registerBtn") {
+      action = "register";
+    } else if (submitterId === "loginBtn") {
+      action = "login";
+    }
+
+    await handleAuthSubmit(action);
   });
 
   // ========================================
@@ -334,9 +330,7 @@
 
     const messageId = String(message.id);
 
-    // Prevent duplicate messages from history and Realtime.
     if (renderedMessageIds.has(messageId)) return;
-
     renderedMessageIds.add(messageId);
 
     const messageElement = document.createElement("article");
@@ -348,8 +342,6 @@
 
     const usernameElement = document.createElement("span");
     usernameElement.className = "message-username";
-
-    // Never insert user-controlled text using innerHTML.
     usernameElement.textContent = message.username || "Player";
 
     const timeElement = document.createElement("time");
@@ -373,14 +365,14 @@
     messageElement.append(header, bodyElement);
     messagesContainer.appendChild(messageElement);
 
-    // Keep the newest message visible.
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 
   async function loadMessages() {
-    if (isLoadingMessages) return;
+    if (isLoadingMessages || !currentUser) return;
 
     isLoadingMessages = true;
+    const loadingUserId = currentUser.id;
 
     try {
       const { data, error } = await supabase
@@ -391,19 +383,24 @@
 
       if (error) throw error;
 
+      if (!currentUser || currentUser.id !== loadingUserId) return;
+
       messagesContainer.replaceChildren();
       renderedMessageIds.clear();
 
-      // Query newest first, render oldest first.
+      // Display oldest to newest.
       for (const message of (data || []).reverse()) {
         renderMessage(message);
       }
     } catch (error) {
       console.error("[TanChat] Failed to load messages:", error);
-      showAuthMessage(
-        "Could not load messages. Check your Supabase RLS policies.",
-        true
-      );
+
+      if (currentUser?.id === loadingUserId) {
+        showAuthMessage(
+          "Could not load messages. Check your Supabase RLS policies.",
+          true
+        );
+      }
     } finally {
       isLoadingMessages = false;
     }
@@ -415,7 +412,7 @@
 
   function unsubscribeFromMessages() {
     if (channel) {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
       channel = null;
     }
   }
@@ -440,10 +437,9 @@
       .subscribe((status) => {
         console.log("[TanChat] Realtime status:", status);
 
-        if (status === "CHANNEL_ERROR") {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.error(
-            "[TanChat] Realtime subscription failed. " +
-            "Check whether messages is included in supabase_realtime."
+            "[TanChat] Realtime subscription failed. Check Supabase settings."
           );
         }
       });
@@ -492,7 +488,8 @@
     } finally {
       isSending = false;
       messageInput.disabled = false;
-      messageInput.focus();
+
+      if (currentUser) messageInput.focus();
     }
   });
 
@@ -516,10 +513,12 @@
   });
 
   // ========================================
-  // Session handling / automatic login
+  // Session / automatic login
   // ========================================
 
-  async function applySession(session) {
+  async function applySession(session, version) {
+    if (version !== sessionVersion) return;
+
     if (!session?.user) {
       currentUser = null;
 
@@ -535,16 +534,18 @@
     currentUser = session.user;
 
     if (currentUsername) {
-      currentUsername.textContent =
-        getUsernameFromUser(currentUser);
+      currentUsername.textContent = getUsernameFromUser(currentUser);
     }
 
     showChatView();
 
     await loadMessages();
 
-    // The user might have logged out while messages were loading.
-    if (!currentUser || currentUser.id !== session.user.id) {
+    if (
+      version !== sessionVersion ||
+      !currentUser ||
+      currentUser.id !== session.user.id
+    ) {
       return;
     }
 
@@ -554,10 +555,11 @@
   supabase.auth.onAuthStateChange((event, session) => {
     console.log("[TanChat] Auth state:", event);
 
-    // Defer Supabase operations to avoid running them
-    // inside the auth-state callback.
+    const version = ++sessionVersion;
+
+    // Defer further Supabase operations outside the callback.
     setTimeout(() => {
-      applySession(session).catch((error) => {
+      applySession(session, version).catch((error) => {
         console.error("[TanChat] Session error:", error);
       });
     }, 0);
@@ -574,12 +576,11 @@
       return;
     }
 
-    await applySession(data.session);
+    await applySession(data.session, sessionVersion);
   }
 
   initialize().catch((error) => {
     console.error("[TanChat] Initialization error:", error);
     showAuthMessage("TanChat could not be initialized.", true);
   });
-
 })();
